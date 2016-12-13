@@ -26,7 +26,6 @@
 from __future__ import absolute_import
 
 import hashlib
-import json
 import os
 import shutil
 import signal
@@ -35,7 +34,8 @@ import time
 from collections import deque
 
 import requests
-from cds_sorenson.api import get_encoding_status, start_encoding, stop_encoding
+from cds_sorenson.api import (get_presets_by_aspect_ratio, get_encoding_status,
+                              start_encoding, stop_encoding)
 from celery import Task, shared_task, current_app as celery_app
 from celery.states import FAILURE, STARTED, SUCCESS
 from flask import current_app
@@ -182,7 +182,7 @@ def video_metadata_extraction(self, uri, object_version, deposit_id,
         recid = str(PersistentIdentifier.get('depid', deposit_id).object_uuid)
 
         # Extract video's metadata using `ff_probe`
-        metadata = json.loads(ff_probe_all(uri))
+        metadata = ff_probe_all(uri)
 
         # Add technical information to the ObjectVersion as Tags
         format_keys = [
@@ -297,7 +297,7 @@ def video_transcode(self,
 
     :param object_version: Master video.
     :param video_presets: List of presets to use for transcoding. If ``None``
-        it will use the default values set in ``VIDEO_DEFAULT_PRESETS``.
+        it will try to get the presets based on the aspect ratio of the video.
     :param sleep_time: the time interval between requests for Sorenson status
     """
     object_version = as_object_version(object_version)
@@ -317,20 +317,37 @@ def video_transcode(self,
         # TODO handle better file deleting and ObjectVersion cleaning
         map(lambda _info: stop_encoding(info['job_id']), job_ids)
 
+    def filepath_for_samba(filepath):
+        """Adjust path for Samba protocol.
+
+        Sorenson has the eos directory mounted through samba, so the paths
+        need to be adjusted.
+        """
+        # TODO: Make those variables configurable?
+        samba_dir = 'file://cernbox-smb.cern.ch/eoscds/'
+        eos_dir = '/eos/workspace/c/cds/'
+        return filepath.replace(eos_dir, samba_dir)
+
     signal.signal(signal.SIGTERM, handler)
 
     # Get master file's bucket_id
     bucket_id = object_version.bucket_id
     bucket_location = object_version.bucket.location.uri
 
-    preset_config = current_app.config['CDS_SORENSON_PRESETS']
-    for preset in video_presets or preset_config.keys():
+    # preset_config = current_app.config['CDS_SORENSON_PRESETS']
+    # preset_config = ['dc2187a3-8f64-4e73-b458-7370a88d92d7']
+    if not video_presets:
+        tags = object_version.get_tags()
+        aspect_ratio = tags.get('display_aspect_ratio')
+        video_presets = get_presets_by_aspect_ratio(aspect_ratio)
+    for preset in video_presets:
         with db.session.begin_nested():
             # Create FileInstance and get generated UUID
             file_instance = FileInstance.create()
             # Create ObjectVersion
             base_name = object_version.key.rsplit('.', 1)[0]
-            new_extension = preset_config[preset][1]
+            # Extension is always .mp4
+            new_extension = '.mp4'
             obj = ObjectVersion.create(
                 bucket=bucket_id,
                 key='{0}-{1}{2}'.format(base_name, preset, new_extension)
@@ -346,9 +363,18 @@ def video_transcode(self,
 
             # Start Sorenson
             input_file = object_version.file.uri
-            output_file = os.path.join(directory.root_path, filename)
+            output_file = os.path.join(directory.root_path, filename +
+                                       new_extension)
+            # Adjust the paths for Samba protocol
+            sorenson_input_file = filepath_for_samba(input_file)
+            sorenson_output_file = filepath_for_samba(output_file)
 
-            job_id = start_encoding(input_file, preset, output_file)
+            from celery.contrib import rdb
+            rdb.set_trace()
+
+            job_id = start_encoding(sorenson_input_file, preset,
+                                    sorenson_output_file)
+
             ObjectVersionTag.create(obj, '_sorenson_job_id', job_id)
             job_info = dict(
                 preset=preset,
@@ -370,39 +396,83 @@ def video_transcode(self,
         )
         job_ids.append(job_info)
 
+    total_status = 'Waiting'
+    total_precentage = 0
+    # We count the number of transcoding jobs to calculate the percentage
+    transcoding_jobs = len(job_ids)
+    print("transcoding jobs: {0}".format(transcoding_jobs))
+    # Count the number of transcoding jobs that failed
+    failed_jobs = 0
+
+    # def update_trancoding_status(state, percentage):
+    #     """Update the total transcoding state or percentage."""
+    #     if state == 'Transcoding':
+    #         transcoding_state = 'Transcoding'
+    #     if state == 'Finished':
+    #         transcoding_precentage += 100 // transcoding_jobs
+
     # Monitor jobs and report accordingly
     while job_ids:
-        info = job_ids.popleft()
+        job_info = job_ids.popleft()
 
         # Get job status
-        status = get_encoding_status(info['job_id'])['Status']
-        percentage = 100 if status['TimeFinished'] else status['Progress']
-        info['percentage'] = percentage
+        status, percentage = get_encoding_status(job_info['job_id'])
+        print("status: {0}".format(status))
+        print("percentage: {0}".format(percentage))
 
-        # Update task's state for each individual preset
-        self.update_state(
-            state=STARTED,
-            meta=dict(
-                payload=dict(job_info=job_info),
-                message='Transcoding {0}'.format(percentage),
-            )
-        )
+        # Once the first transcoding job has started, we change the total
+        # status to transcoding
+        if status == 'Transcoding':
+            total_status = 'Transcoding'
 
-        # Set file's location for completed jobs
-        if percentage == 100:
+        # Different actions for finished tasks
+        if status == 'Finished':
+            # Update the total percentage
+            total_precentage += 100 // transcoding_jobs
+            job_info['percentage'] = total_precentage
+            # Set file's location for completed jobs
             with db.session.begin_nested():
-                uri = info['uri']
+                uri = job_info['uri']
                 with open(uri, 'rb') as transcoded_file:
                     digest = hashlib.md5(transcoded_file.read()).hexdigest()
                 size = os.path.getsize(uri)
                 checksum = '{0}:{1}'.format('md5', digest)
                 FileInstance.get(
-                    info['file_instance']).set_uri(uri, size, checksum)
+                    job_info['file_instance']).set_uri(uri, size, checksum)
             db.session.commit()
+        elif status in ['Error', 'Canceled', 'Deleted', 'Incomplete']:
+            # There was something wrong with the transcoding, but the
+            # transcoding is finished, so we don't add the job info back to
+            # the queue
+            # We will inform the user about how many jobs failed at the end
+            failed_jobs += 1
         else:
-            job_ids.append(info)
+            job_ids.append(job_info)
+
+        # Update task's state
+        self.update_state(
+            state=STARTED,
+            meta=dict(
+                payload=dict(**job_info),
+                message=total_status,
+            )
+        )
 
         time.sleep(sleep_time)
+
+    # No more jobs, check how many failed and set the status
+    if failed_jobs:
+        total_status = '{0} transcoding tasks failed'.format(failed_jobs)
+
+    self.update_state(
+        state=SUCCESS,
+        meta=dict(
+            payload=dict(
+                bucket_id=str(bucket_id),
+                percentage=100),
+            message=total_status,
+        )
+    )
 
 
 @shared_task(bind=True)

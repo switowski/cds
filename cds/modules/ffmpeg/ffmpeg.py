@@ -26,8 +26,10 @@
 
 from __future__ import absolute_import
 
+from math import gcd
 from subprocess import check_output
 
+import json
 import pexpect
 
 
@@ -59,12 +61,15 @@ def ff_probe_all(input_filename):
     * *-show_format -print_format json* output in JSON format
     * *-show_streams -select_streams v:0* show information for video streams
     """
-    return check_output([
+    ffprobe_output = check_output([
         'ffprobe', '-v', 'error',
         '-show_format', '-print_format', 'json',
         '-show_streams', '-select_streams', 'v:0',
         '{}'.format(input_filename)
     ]).decode('utf-8')
+    ffprobe_output = json.loads(ffprobe_output)
+    ffprobe_output = fix_display_ratio(ffprobe_output)
+    return ffprobe_output
 
 
 def ff_frames(input_file, start, end, step, output, progress_callback=None):
@@ -103,3 +108,29 @@ def ff_frames(input_file, start, end, step, output, progress_callback=None):
                 int(amount) * 60 ** power for power, amount in
                 enumerate(reversed(thread.match.group(1).split(b':')))
             ), duration)
+
+
+def fix_display_ratio(metadata):
+    """Fix the field with display ratio, if it's incorrect.
+
+    Sometimes, ffprobe can't identify the display aspect ratio, but we can
+    calculate it from the width and height, so let's fix it.
+    """
+    def calculate_aspect_ratio(width, height):
+        """Calculate the aspect ratio based on the width and height.
+
+        :param width: integer with the width
+        :param height: integer with the height
+        """
+        greatest_common_divisor = gcd(width, height)
+        return "{0}:{1}".format(width // greatest_common_divisor,
+                                height // greatest_common_divisor)
+
+    aspect_ratio = metadata.get('streams', [])[0].get('display_aspect_ratio')
+    if aspect_ratio == '0:1':
+        # 0:1 means undefined aspect_ratio. Let's fix it
+        width = metadata.get('streams', [])[0].get('width')
+        height = metadata.get('streams', [])[0].get('height')
+        metadata['streams'][0]['display_aspect_ratio'] = \
+            calculate_aspect_ratio(width, height)
+    return metadata
