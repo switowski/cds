@@ -75,12 +75,11 @@ es:
 
 static:
   build: .
-  command: /bin/true
   restart: "no"
-  user: cds
+  # user: cds
   volumes:
     - "/usr/local/var/instance/static"
-    - ".:/code/cds"
+    # - ".:/code/cds"
 
 nginx:
   build: ./docker/nginx/
@@ -88,7 +87,6 @@ nginx:
     - web
   ports:
     - "80:80"
-    - "443:443"
   restart: "always"
   volumes_from:
     - static

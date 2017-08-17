@@ -97,9 +97,10 @@ RUN python -O -m compileall . \
     && cds assets build
 
 
-# RUN adduser --uid 1000 --disabled-password --gecos '' cds \
-#     && chown -R cds:cds /code ${APP_INSTANCE_PATH}
-
+# # Run container as user `cds` with UID `1000`, which should match
+# # current host user in most situations:
+# RUN adduser --uid 1000 --disabled-password --gecos '' cds && \
+#     chown -R cds:cds /code ${APP_INSTANCE_PATH}
 # USER cds
 
 VOLUME ["/code/cds"]
