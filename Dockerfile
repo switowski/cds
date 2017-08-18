@@ -38,37 +38,6 @@ RUN apt-get update \
     && find /usr/share/doc -depth -type f ! -name copyright -delete
 
 
-# RUN apt-get update && \
-#     apt-get install -y lsb-release
-
-# # install dependencies
-# RUN apt-get update \
-#     && apt-get -qy upgrade --fix-missing --no-install-recommends \
-#     && apt-get -qy install --fix-missing --no-install-recommends \
-#         curl \
-#         git \
-#         gcc \
-#         # Postgres
-#         libpq-dev \
-#         # python-pillow
-#         libjpeg-dev \
-#         libffi-dev \
-#         libfreetype6-dev \
-#         libmsgpack-dev \
-#         # CairoSVG
-#         libcairo2-dev \
-#         libssl-dev \
-#         libxml2-dev \
-#         libxslt-dev \
-#         imagemagick \
-#     # Install node
-#     && curl -sL https://deb.nodesource.com/setup_6.x | bash - \
-#     && apt-get install -y nodejs\
-#     && npm install -g bower node-sass clean-css requirejs uglify-js \
-#     && npm install -g clean-css@3.4.24 \
-#     && npm install -g node-sass@3.8.0
-
-# no need to install ES here, it will be installed by the docker-compose.yml
 # install python libraries
 RUN pip install --upgrade pip setuptools py && \
     pip install --upgrade twine wheel coveralls requirements-builder flask-shell-ipython gunicorn httpie
@@ -95,13 +64,6 @@ RUN python -O -m compileall . \
     && npm install \
     && cds collect -v \
     && cds assets build
-
-
-# # Run container as user `cds` with UID `1000`, which should match
-# # current host user in most situations:
-# RUN adduser --uid 1000 --disabled-password --gecos '' cds && \
-#     chown -R cds:cds /code ${APP_INSTANCE_PATH}
-# USER cds
 
 VOLUME ["/code/cds"]
 # ENTRYPOINT ["/docker-entrypoint.sh"]

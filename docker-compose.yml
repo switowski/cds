@@ -1,6 +1,6 @@
 web:
   build: .
-  command: cds run -h 0.0.0.0 -p 5000
+  command: cds run -h 0.0.0.0 -p 5000 --debugger
   environment:
     - "APP_ACCOUNTS_SESSION_REDIS_URL=redis://cache:6379/1"
     - "APP_BROKER_URL=amqp://guest:guest@mq:5672//"
