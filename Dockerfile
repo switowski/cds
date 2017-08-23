@@ -66,5 +66,22 @@ RUN python -O -m compileall . \
     && cds assets build
 
 VOLUME ["/code/cds"]
+
+# Required to support Support Arbitrary User IDs in OpenShift
+# https://docs.openshift.org/latest/creating_images/guidelines.html
+# source: https://github.com/RHsyseng/container-rhel-examples/blob/master/starter-arbitrary-uid/Dockerfile.centos7
+ENV PATH=${APP_INSTANCE_PATH}/bin:${PATH} HOME=${APP_INSTANCE_PATH}
+COPY docker/uid_entrypoint ${APP_INSTANCE_PATH}/bin/
+RUN chmod -R u+x ${APP_INSTANCE_PATH}/bin && \
+    chgrp -R 0 ${APP_INSTANCE_PATH} && \
+    chmod -R g=u ${APP_INSTANCE_PATH} /etc/passwd
+
+### Containers should NOT run as root as a good practice
+USER 10001
+WORKDIR ${APP_INSTANCE_PATH}
+
+### user name recognition at runtime w/ an arbitrary uid - for OpenShift deployments
+ENTRYPOINT [ "uid_entrypoint" ]
+
 # ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["cds", "run", "-h", "0.0.0.0"]
