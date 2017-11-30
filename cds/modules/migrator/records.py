@@ -265,10 +265,14 @@ class CDSRecordDumpLoader(RecordDumpLoader):
             record_bucket.bucket.locked = False
             # Make files writable
             for obj in bucket.objects:
-                files.append(obj.file.id)
-                obj.file.writable = True
-                db.session.add(obj.file)
-            bucket.remove()
+                if not obj.file:
+                    # File does not exist? Delete the reference!
+                    ObjectVersion.delete(obj, obj.key)
+                else:
+                    files.append(obj.file.id)
+                    obj.file.writable = True
+                    db.session.add(obj.file)
+                bucket.remove()
         db.session.commit()
         cls.clean_files(files)
 
@@ -501,7 +505,12 @@ class CDSRecordDumpLoader(RecordDumpLoader):
         logging.info('Moving files from DFS.')
         bucket = as_bucket(deposit['_buckets']['deposit'])
         if Video.get_record_schema() == record['$schema']:
-            master = cls._resolve_master_file(record, bucket)
+            # Sometimes moving files fails, so let's retry few times
+            for r in range(5):
+                master = cls._resolve_master_file(record, bucket)
+                if master:
+                    break
+                logging.info('Moving failed, retrying {0}/5.'.format(r + 1))
             if master:
                 cls._create_or_update_frames(record=record, master_file=master)
                 # build objects/tags from marc21 metadata
@@ -686,6 +695,10 @@ class CDSRecordDumpLoader(RecordDumpLoader):
         """Resolve file."""
         def progress_callback(size, total):
             logging.debug('Moving file {0} of {1}'.format(total, size))
+
+        # Skip non-master files as they are broken up
+        if not file_.get('tags').get('context_type'):
+            return None
 
         # resolve preset info
         tags_to_guess_preset = file_.get('tags_to_guess_preset', {})

@@ -34,8 +34,9 @@ import tempfile
 import time
 from functools import partial
 
-import jsonpatch
 import requests
+
+import jsonpatch
 from cds_sorenson.api import (get_encoding_status, get_preset_info,
                               start_encoding, stop_encoding)
 from cds_sorenson.error import InvalidResolutionError, TooHighResolutionError
@@ -44,7 +45,6 @@ from celery import Task, shared_task
 from celery.exceptions import Ignore
 from celery.states import FAILURE, REVOKED, STARTED, SUCCESS
 from celery.utils.log import get_task_logger
-from flask_iiif.utils import create_gif_from_frames
 from invenio_db import db
 from invenio_files_rest.models import (FileInstance, ObjectVersion,
                                        ObjectVersionTag, as_bucket,
@@ -58,6 +58,7 @@ from sqlalchemy.orm import aliased
 from sqlalchemy.orm.exc import ConcurrentModificationError
 from werkzeug.utils import import_string
 
+from ..cds_iiif.utils import create_gif_from_frames
 from ..deposit.api import deposit_video_resolver
 from ..ffmpeg import ff_frames, ff_probe_all
 from ..xrootd.utils import (file_move_xrootd, file_opener_xrootd,
@@ -490,12 +491,15 @@ class ExtractFramesTask(AVCTask):
 
         images = []
         for f in frames:
-            image = Image.open(file_opener_xrootd(f, 'rb'))
-            # Convert image for better quality
-            im = image.convert('RGB').convert(
-                'P', palette=Image.ADAPTIVE, colors=255
-            )
-            images.append(im)
+            try:
+                image = Image.open(file_opener_xrootd(f, 'rb'))
+                # Convert image for better quality
+                im = image.convert('RGB').convert(
+                    'P', palette=Image.ADAPTIVE, colors=255
+                )
+                images.append(im)
+            except IOError as e:
+                pass
         gif_image = create_gif_from_frames(images)
         gif_fullpath = os.path.join(output_dir, gif_filename)
         gif_image.save(gif_fullpath, save_all=True)

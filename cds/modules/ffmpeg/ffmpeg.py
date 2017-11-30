@@ -49,7 +49,7 @@ def ff_probe(input_filename, field):
     if field == 'display_aspect_ratio':
         return probe_aspect_ratio(input_filename)
 
-    return run_command(
+    return run_command_9(
         'ffprobe -v error -select_streams v:0 -show_entries stream={0} -of '
         'default=noprint_wrappers=1:nokey=1 {1}'.format(field, input_filename),
         error_class=MetadataExtractionExecutionError
@@ -67,7 +67,7 @@ def ff_probe_all(input_filename):
     """
     cmd = 'ffprobe -v quiet -show_format -print_format json -show_streams ' \
           '-select_streams v:0 {0}'.format(input_filename)
-    metadata = run_command(
+    metadata = run_command_9(
         cmd, error_class=MetadataExtractionExecutionError
     ).decode('utf-8')
 
@@ -201,7 +201,7 @@ def ff_frames(input_file, start, end, step, duration, output,
             timestamp, input_file, output.format(i + 1))
 
         # Run ffmpeg command
-        run_command(cmd, error_class=FrameExtractionExecutionError)
+        run_command_8(cmd, error_class=FrameExtractionExecutionError)
 
         # Report progress
         if progress_callback:
@@ -216,5 +216,25 @@ def run_command(command, error_class=FFmpegExecutionError, **kwargs):
     kwargs.setdefault('stderr', STDOUT)
     try:
         return check_output(command.split(), **kwargs)
+    except CalledProcessError as e:
+        raise error_class(e)
+
+
+def run_command_9(command, error_class=FFmpegExecutionError, **kwargs):
+    """Run ffmpeg command and capture errors."""
+    kwargs.setdefault('stderr', STDOUT)
+    try:
+        # Max 9 splits to keep the filepath together in probing
+        return check_output(command.split(' ', 9), **kwargs)
+    except CalledProcessError as e:
+        raise error_class(e)
+
+
+def run_command_8(command, error_class=FFmpegExecutionError, **kwargs):
+    """Run ffmpeg command and capture errors."""
+    kwargs.setdefault('stderr', STDOUT)
+    try:
+        # Max 9 splits to keep the filepath together in frames
+        return check_output(command.split(' ', 8), **kwargs)
     except CalledProcessError as e:
         raise error_class(e)
