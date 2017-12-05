@@ -103,7 +103,7 @@ def check_record(data, source_type):
 
     # First verify if the record exists
     recid_pid = PersistentIdentifier.query.filter(
-        PersistentIdentifier.pid_value == recorddump.recid,
+        PersistentIdentifier.pid_value == str(recorddump.recid),
         PersistentIdentifier.pid_type == 'recid').one_or_none()
     if not recid_pid:
         check_record_logger.error(
@@ -142,8 +142,8 @@ def _check_web(record):
     url_info = {'recid': record['recid'], 'rn': record['report_number'][0]}
 
     for url in urls:
-        url = url.format(url_info)
-        response = requests.get(url)
+        url = url.format(**url_info)
+        response = requests.get(url, verify=False)
         if response.status_code == 401:
             if is_public(record, 'read'):
                 check_record_logger.error('Record {0} should be public in {1}'.
