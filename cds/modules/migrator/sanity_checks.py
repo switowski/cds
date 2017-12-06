@@ -22,14 +22,22 @@
 # In applying this license, CERN does not
 # waive the privileges and immunities granted to it by virtue of its status
 # as an Intergovernmental Organization or submit itself to any jurisdiction.
-"""Record migration special."""
+"""Perform sanity checks
+
+Run me like:
+
+
+import json
+dump = json.load(open('/home/cds/1128435_0.json','r'))[0]
+from cds.modules.migrator.sanity_checks import check_record
+check_record(dump, 'marcxml')
+
+"""
 import hashlib
 import os
 from time import sleep
 
 import requests
-from celery import shared_task
-from celery.utils.log import get_task_logger
 
 from invenio_db import db
 from invenio_files_rest.models import ObjectVersion
@@ -45,50 +53,7 @@ from ..records.permissions import is_public
 from ..records.resolver import record_resolver
 from ..webhooks.tasks import TranscodeVideoTask
 
-check_record_logger = get_task_logger('cds-migrator-check-record')
 
-
-class TranscodeVideoTaskQuiet(TranscodeVideoTask):
-    """Transcode without index or send sse messages."""
-
-    def on_success(self, *args, **kwargs):
-        # get deposit and record
-        deposit_id = args[3]['deposit_id']
-        video = deposit_video_resolver(deposit_id)
-        rec_video = record_resolver.resolve(video['recid'])[1]
-        # sync deposit --> record
-        video._sync_record_files(record=rec_video)
-        video.commit()
-        rec_video.commit()
-
-    def _update_record(self, *args, **kwargs):
-        pass
-
-
-@shared_task(ignore_result=True)
-def clean_record(data, source_type):
-    """Delete all information related with a given record.
-
-    Note: files are deleted from the file system
-    """
-    try:
-        source_type = source_type or 'marcxml'
-        assert source_type in ['marcxml', 'json']
-
-        recorddump = current_migrator.records_dump_cls(
-            data,
-            source_type=source_type,
-            pid_fetchers=current_migrator.records_pid_fetchers, )
-        current_migrator.records_dumploader_cls.clean(
-            recorddump, delete_files=True)
-
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-        raise
-
-
-@shared_task(ignore_result=True)
 def check_record(data, source_type):
     """Verify if the record and files were correctly migrated."""
     source_type = source_type or 'marcxml'
@@ -106,8 +71,7 @@ def check_record(data, source_type):
         PersistentIdentifier.pid_value == str(recorddump.recid),
         PersistentIdentifier.pid_type == 'recid').one_or_none()
     if not recid_pid:
-        check_record_logger.error(
-            'PID not found: {0}'.format(recorddump.recid))
+        print('PID not found: {0}'.format(recorddump.recid))
         raise Exception('Record {0} not migrated'.format(recorddump.recid))
 
     record = Record.get_record(recid_pid.object_uuid)
@@ -146,10 +110,10 @@ def _check_web(record):
         response = requests.get(url, verify=False)
         if response.status_code == 401:
             if is_public(record, 'read'):
-                check_record_logger.error('Record {0} should be public in {1}'.
+                print('Record {0} should be public in {1}'.
                                           format(record['recid'], url))
         elif response.status_code != 200:
-            check_record_logger.error('Cannot access record {0} via {1}'.
+            print('Cannot access record {0} via {1}'.
                                       format(record['recid'], url))
         sleep(0.1)
 
@@ -158,7 +122,7 @@ def _check_es(record):
     """Check if the record is correctly indexed."""
     index, doc_type = current_record_to_index(record)
     if not current_search_client.exists(index, doc_type, record.id):
-        check_record_logger.error(
+        print(
             'Record not indexed {0}'.format(record['recid']))
 
 
@@ -172,9 +136,9 @@ def _check_files(record, recorddump):
     record_bucket = RecordsBuckets.query.filter(
         RecordsBuckets.record_id == record.id).one_or_none()
     if not record_bucket:
-        check_record_logger.error(
+        print(
             'Bucket not found: {0}'.format(recorddump.recid))
-        raise Exception(
+        print(
             'Files for record {0} not migrated'.format(recorddump.recid))
 
     # Verify master file
@@ -183,7 +147,7 @@ def _check_files(record, recorddump):
             f for f in old_files if f['tags']['context_type'] == 'master'
         ][0]
     except IndexError:
-        check_record_logger.error(
+        print(
             'Master file not found: {0}'.format(recorddump.recid))
         return
     master_file_path = current_migrator.records_dumploader_cls._get_full_path(
@@ -194,30 +158,27 @@ def _check_files(record, recorddump):
         # Before raising verify the master is accessible on DFS
         if not (os.path.isfile(master_file_path) and
                 os.access(master_file_path, os.R_OK)):
-            check_record_logger.error(
+            print(
                 'Master file found but not migrated: {0}'.format(
                     recorddump.recid))
-            raise Exception('Master file for record {0} not migrated'.format(
-                recorddump.recid))
         else:
-            check_record_logger.warning(
+            print(
                 'Master file found in dump but not on DFS: {0}'.format(
                     recorddump.recid))
             return
     # CHECKSUM VERIFICATION TAKES TOO LONG, LET'S SKIP IT!
-    # # Verify master object checksum
+    # Verify master object checksum
     # old_master_md5 = _md5(master_file_path)
     # if master_obj.file.checksum != old_master_md5:
-    #     check_record_logger.error(
+    #     print(
     #         'Master file checksum not correct: {0}'.format(recorddump.recid))
-    #     raise Exception('Wrong checksum {0}'.format(recorddump.recid))
 
     # At this point we know the master file is correct, check the other files
     master_file = CDSVideosFilesIterator.get_master_video_file(record)
     # Check frames
     frames = CDSVideosFilesIterator.get_video_frames(master_file)
     if len(frames) != 10:  # magic number, we are always creating ten of them
-        check_record_logger.error(
+        print(
             'Not all frames were created for {0}'.format(recorddump.recid))
 
     # Check slaves
@@ -226,5 +187,5 @@ def _check_files(record, recorddump):
     ]
     new_slaves = CDSVideosFilesIterator.get_video_subformats(master_file)
     if len(new_slaves) < len(old_slaves):
-        check_record_logger.error(
+        print(
             'Not all slaves were migrated for {0}'.format(recorddump.recid))
