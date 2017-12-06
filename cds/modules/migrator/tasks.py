@@ -114,7 +114,7 @@ def check_record(data, source_type):
     # The record exists
     assert record
 
-    _chec_files(record, recorddump)
+    _check_files(record, recorddump)
     _check_web(record)
     _check_es(record)
 
@@ -162,7 +162,7 @@ def _check_es(record):
             'Record not indexed {0}'.format(record['recid']))
 
 
-def _chec_files(record, recorddump):
+def _check_files(record, recorddump):
     """Check file integrity."""
     old_files = recorddump.revisions[-1][1].get('_files')
     if not old_files:
