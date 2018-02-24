@@ -27,7 +27,8 @@ RUN apt-get update \
         libxslt-dev \
         imagemagick \
     # Node.js
-    && curl -sL https://deb.nodesource.com/setup_iojs_2.x | bash - \
+    && curl -sL https://deb.nodesource.com/setup_9.x | bash - \
+    && apt-get install -y nodejs \
     && apt-get -qy install --fix-missing --no-install-recommends \
         iojs \
 
