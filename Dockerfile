@@ -29,9 +29,6 @@ RUN apt-get update \
     # Node.js
     && curl -sL https://deb.nodesource.com/setup_9.x | bash - \
     && apt-get install -y nodejs \
-    && apt-get -qy install --fix-missing --no-install-recommends \
-        iojs \
-
     && apt-get clean autoclean \
     && apt-get autoremove -y \
     && rm -rf /var/lib/{apt,dpkg}/ \

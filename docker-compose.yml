@@ -9,7 +9,7 @@ frontend:
     - static
 web:
   build: .
-  command: cds run -h 0.0.0.0 -p 5000
+  command: ./run-tests.sh
   ports:
     - "5000:5000"
   environment:
