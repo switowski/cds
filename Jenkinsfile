@@ -22,17 +22,16 @@ pipeline {
             steps {
                 sh "./run-tests.sh"
             }
-
-            post {
-                always {
-                    junit "build/junit/*.xml"
-                    step([
-                        $class: "CloverPublisher",
-                        cloverReportDir: "build/coverage",
-                        cloverReportFileName: "clover.xml"
-                    ])
-                }
-            }
+            // post {
+            //     always {
+            //         junit "build/junit/*.xml"
+            //         step([
+            //             $class: "CloverPublisher",
+            //             cloverReportDir: "build/coverage",
+            //             cloverReportFileName: "clover.xml"
+            //         ])
+            //     }
+            // }
         }
     }
 }
