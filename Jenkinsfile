@@ -19,12 +19,12 @@ pipeline {
                     . venv/bin/activate
                     ./.travis-extra-install.sh
                     export PATH=$PATH:/tmp/ffmpeg
-                    ./scripts/setup-npm.sh
-                    ./.travis-requirements-build.sh
+                    source ./scripts/setup-npm.sh
+                    source ./.travis-requirements-build.sh
 
                     pip install -r .travis-${REQUIREMENTS}-requirements.txt
                     pip install -e .[all]
-                    ./scripts/setup-assets.sh
+                    source ./scripts/setup-assets.sh
                 '''
             }
         }
