@@ -14,14 +14,17 @@ pipeline {
         }
         stage("Build and start test image") {
             steps {
-                sh './.travis-extra-install.sh'
-                sh 'export PATH=$PATH:/tmp/ffmpeg'
-                sh './scripts/setup-npm.sh'
-                sh './.travis-requirements-build.sh'
+                sh '''
+                    export PATH=${PATH}:/usr/local/bin # For pip
+                    ./.travis-extra-install.sh
+                    export PATH=$PATH:/tmp/ffmpeg
+                    ./scripts/setup-npm.sh
+                    ./.travis-requirements-build.sh
 
-                sh 'pip install -r .travis-${REQUIREMENTS}-requirements.txt'
-                sh 'pip install -e .[all]'
-                sh './scripts/setup-assets.sh'
+                    pip install -r .travis-${REQUIREMENTS}-requirements.txt
+                    pip install -e .[all]
+                    ./scripts/setup-assets.sh
+                '''
             }
         }
 
