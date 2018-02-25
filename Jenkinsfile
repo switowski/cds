@@ -15,7 +15,7 @@ pipeline {
         stage("Build and start test image") {
             steps {
                 sh '''
-                    sudo easy_install pip
+                    easy_install pip
                     export PATH=${PATH}:/usr/local/bin # For pip
                     ./.travis-extra-install.sh
                     export PATH=$PATH:/tmp/ffmpeg
