@@ -14,7 +14,14 @@ pipeline {
         }
         stage("Build and start test image") {
             steps {
-                sh 'echo "Nothing here yet"'
+                sh './.travis-extra-install.sh'
+                sh 'export PATH=$PATH:/tmp/ffmpeg'
+                sh './scripts/setup-npm.sh'
+                sh './.travis-requirements-build.sh'
+
+                sh 'pip install -r .travis-${REQUIREMENTS}-requirements.txt'
+                sh 'pip install -e .[all]'
+                sh './scripts/setup-assets.sh'
             }
         }
 
@@ -22,16 +29,6 @@ pipeline {
             steps {
                 sh "./run-tests.sh"
             }
-            // post {
-            //     always {
-            //         junit "build/junit/*.xml"
-            //         step([
-            //             $class: "CloverPublisher",
-            //             cloverReportDir: "build/coverage",
-            //             cloverReportFileName: "clover.xml"
-            //         ])
-            //     }
-            // }
         }
     }
 }
