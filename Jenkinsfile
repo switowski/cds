@@ -25,7 +25,7 @@ pipeline {
                     ./.travis-extra-install.sh
                     export PATH=$PATH:/tmp/ffmpeg
                     # source ./scripts/setup-npm.sh
-                    npm install node-sass@3.8.0 clean-css@3.4.24 uglify-js requirejs
+                    npm install --silent node-sass@3.8.0 clean-css@3.4.24 uglify-js requirejs
                     source ./.travis-requirements-build.sh
 
                     pip install -r .travis-${REQUIREMENTS}-requirements.txt
