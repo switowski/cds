@@ -15,8 +15,8 @@ pipeline {
         stage("Build and start test image") {
             steps {
                 sh '''
-                    easy_install pip
-                    export PATH=${PATH}:/usr/local/bin # For pip
+                    virtualenv venv --distribute
+                    . venv/bin/activate
                     ./.travis-extra-install.sh
                     export PATH=$PATH:/tmp/ffmpeg
                     ./scripts/setup-npm.sh
