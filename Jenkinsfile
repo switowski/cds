@@ -5,6 +5,9 @@ pipeline {
     environment {
         TAG = "${env.BRANCH_NAME}_${env.BUILD_NUMBER}"
         REQUIREMENTS = 'prod'
+        SQLALCHEMY_DATABASE_URI = "postgresql+psycopg2://postgres@localhost:5432/cds"
+        ES_VERSION = '2.2.0'
+        ES_HOST = '127.0.0.1'
     }
 
     stages {
@@ -21,7 +24,7 @@ pipeline {
                     ./.travis-extra-install.sh
                     export PATH=$PATH:/tmp/ffmpeg
                     # source ./scripts/setup-npm.sh
-                    npm update && npm install node-sass@3.8.0 clean-css@3.4.24 uglify-js requirejs
+                    npm install node-sass@3.8.0 clean-css@3.4.24 uglify-js requirejs
                     source ./.travis-requirements-build.sh
 
                     pip install -r .travis-${REQUIREMENTS}-requirements.txt
