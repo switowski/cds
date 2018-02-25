@@ -30,7 +30,6 @@ pipeline {
 
                     pip install -r .travis-${REQUIREMENTS}-requirements.txt
                     pip install -e .[all]
-                    pip install pydocstyle # For some reason, it is not installed by default
                     source ./scripts/setup-assets.sh
                 '''
             }
@@ -38,7 +37,7 @@ pipeline {
 
         stage("Run tests") {
             steps {
-                sh "./run-tests.sh"
+                sh "py.test tests/unit/"
             }
         }
     }
