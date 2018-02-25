@@ -8,6 +8,7 @@ pipeline {
         SQLALCHEMY_DATABASE_URI = "postgresql+psycopg2://postgres@localhost:5432/cds"
         ES_VERSION = '2.2.0'
         ES_HOST = '127.0.0.1'
+        HOME = '.'
     }
 
     stages {
