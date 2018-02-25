@@ -4,8 +4,6 @@ pipeline {
 
     environment {
         TAG = "${env.BRANCH_NAME}_${env.BUILD_NUMBER}"
-        // To avoid the npm permissions error:
-        HOME = "."
         REQUIREMENTS = 'prod'
     }
 
@@ -23,7 +21,7 @@ pipeline {
                     ./.travis-extra-install.sh
                     export PATH=$PATH:/tmp/ffmpeg
                     # source ./scripts/setup-npm.sh
-                    npm update && npm install -g node-sass@3.8.0 clean-css@3.4.24 uglify-js requirejs
+                    npm update && npm install node-sass@3.8.0 clean-css@3.4.24 uglify-js requirejs
                     source ./.travis-requirements-build.sh
 
                     pip install -r .travis-${REQUIREMENTS}-requirements.txt
