@@ -4,6 +4,9 @@ pipeline {
 
     environment {
         TAG = "${env.BRANCH_NAME}_${env.BUILD_NUMBER}"
+        // To avoid the npm permissions error:
+        HOME = "."
+        REQUIREMENTS = 'prod'
     }
 
     stages {
