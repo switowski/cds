@@ -7,7 +7,7 @@ set -o errexit
 set -o nounset
 
 # FFMpeg
-mkdir /tmp/ffmpeg
+mkdir -p /tmp/ffmpeg
 # FIXME could we remove the --no-check-certificate?
 wget -O - https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-64bit-static.tar.xz --no-check-certificate | tar --strip-components 1 -xJ -C /tmp/ffmpeg && export PATH=$PATH:/tmp/ffmpeg
 
